@@ -37,6 +37,7 @@ const muxSupportedClientVersion = "1.1.70"
 
 // PortParameters contains inputs required to execute port plugin.
 type PortParameters struct {
+	BindHost   string `json:"bindHost" yaml:"bindHost"`
 	PortNumber string `json:"portNumber" yaml:"portNumber"`
 	Type       string `json:"type"`
 }
@@ -59,6 +60,9 @@ type IPortSession interface {
 // GetSession initializes session based on the type of the port session
 // mux for port forwarding session and if client supports multiplexing; basic otherwise
 var GetSession = func(portParameters PortParameters, cancelled chan struct{}, clientVersion string, sessionId string) (session IPortSession, err error) {
+	if portParameters.BindHost == "" {
+		portParameters.BindHost = "localhost"
+	}
 	if portParameters.Type == mgsConfig.LocalPortForwarding &&
 		versionutil.Compare(clientVersion, muxSupportedClientVersion, true) >= 0 {
 
@@ -66,7 +70,7 @@ var GetSession = func(portParameters PortParameters, cancelled chan struct{}, cl
 			return session, nil
 		}
 	} else {
-		if session, err = NewBasicPortSession(cancelled, portParameters.PortNumber, portParameters.Type); err == nil {
+		if session, err = NewBasicPortSession(cancelled, portParameters.BindHost, portParameters.PortNumber, portParameters.Type); err == nil {
 			return session, nil
 		}
 	}

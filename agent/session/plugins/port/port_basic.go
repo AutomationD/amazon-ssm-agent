@@ -39,6 +39,7 @@ var DialCall = func(network string, address string) (net.Conn, error) {
 type BasicPortSession struct {
 	portSession        IPortSession
 	conn               net.Conn
+	bindHost           string
 	serverPortNumber   string
 	portType           string
 	reconnectToPort    bool
@@ -47,8 +48,13 @@ type BasicPortSession struct {
 }
 
 // NewBasicPortSession returns a new instance of the BasicPortSession.
-func NewBasicPortSession(cancelled chan struct{}, portNumber string, portType string) (IPortSession, error) {
+func NewBasicPortSession(cancelled chan struct{}, bindHost string, portNumber string, portType string) (IPortSession, error) {
+	if bindHost == "" {
+		bindHost = "localhost"
+	}
+
 	var plugin = BasicPortSession{
+		bindHost:           bindHost,
 		serverPortNumber:   portNumber,
 		portType:           portType,
 		reconnectToPortErr: make(chan error),
@@ -64,10 +70,10 @@ func (p *BasicPortSession) HandleStreamMessage(log log.T, streamDataMessage mgsC
 		log.Tracef("Output message received: %d", streamDataMessage.SequenceNumber)
 
 		if p.reconnectToPort {
-			log.Debugf("Reconnect to port: %s", p.serverPortNumber)
+			log.Debugf("Reconnect to %s:%s", p.bindHost, p.serverPortNumber)
 			err := p.InitializeSession(log)
 
-			// Pass err to reconnectToPortErr chan to unblock writePump go routine to resume reading from localhost:p.serverPortNumber
+			// Pass err to reconnectToPortErr chan to unblock writePump go routine to resume reading from p.bindHost:p.serverPortNumber
 			p.reconnectToPortErr <- err
 			if err != nil {
 				return err
@@ -121,7 +127,7 @@ func (p *BasicPortSession) WritePump(log log.T, dataChannel datachannel.IDataCha
 		if err != nil {
 			var exitCode int
 			if exitCode = p.handleTCPReadError(log, err); exitCode == mgsConfig.ResumeReadExitCode {
-				log.Debugf("Reconnection to port %v is successful, resume reading from port.", p.serverPortNumber)
+				log.Debugf("Reconnection to %v %v is successful, resume reading from port.", p.bindHost, p.serverPortNumber)
 				continue
 			}
 			return exitCode
@@ -138,7 +144,7 @@ func (p *BasicPortSession) WritePump(log log.T, dataChannel datachannel.IDataCha
 
 // InitializeSession dials a connection to port
 func (p *BasicPortSession) InitializeSession(log log.T) (err error) {
-	if p.conn, err = DialCall("tcp", "localhost:"+p.serverPortNumber); err != nil {
+	if p.conn, err = DialCall("tcp", p.bindHost+":"+p.serverPortNumber); err != nil {
 		return errors.New(fmt.Sprintf("Unable to connect to specified port: %v", err))
 	}
 	return nil
@@ -166,10 +172,10 @@ func (p *BasicPortSession) handleSSHDPortError(log log.T, err error) int {
 
 // handlePortError handles error by initiating reconnection to port in case of read failure
 func (p *BasicPortSession) handlePortError(log log.T, err error) int {
-	// Read from tcp connection to localhost:p.serverPortNumber resulted in error. Close existing connection and
+	// Read from tcp connection to p.bindHost:p.serverPortNumber resulted in error. Close existing connection and
 	// set reconnectToPort to true. ReconnectToPort is used when new steam data message arrives on
-	// web socket channel to trigger reconnection to localhost:p.serverPortNumber.
-	log.Debugf("Encountered error while reading from port %v, %v", p.serverPortNumber, err)
+	// web socket channel to trigger reconnection to p.bindHost:p.serverPortNumber.
+	log.Debugf("Encountered error while reading from %v:%v, %v", p.bindHost, p.serverPortNumber, err)
 	p.Stop()
 	p.reconnectToPort = true
 
@@ -181,6 +187,6 @@ func (p *BasicPortSession) handlePortError(log log.T, err error) int {
 		return appconfig.ErrorExitCode
 	}
 
-	// Reconnection to localhost:p.portPlugin is successful, return resume code to starting reading from connection
+	// Reconnection to p.bindHost:p.portPlugin is successful, return resume code to starting reading from connection
 	return mgsConfig.ResumeReadExitCode
 }
