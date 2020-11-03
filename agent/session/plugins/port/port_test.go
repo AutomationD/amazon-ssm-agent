@@ -176,23 +176,6 @@ func (suite *PortTestSuite) TestExecuteWithInvalidPortNumber() {
 	suite.mockIohandler.AssertExpectations(suite.T())
 }
 
-func (suite *PortTestSuite) TestExecuteWithBindHost() {
-	suite.mockCancelFlag.On("Canceled").Return(false)
-	suite.mockCancelFlag.On("ShutDown").Return(false)
-	suite.mockIohandler.On("SetStatus", contracts.ResultStatusFailed).Return(nil)
-	suite.mockIohandler.On("SetExitCode", 1).Return(nil)
-	suite.mockIohandler.On("SetOutput", mock.Anything).Return()
-
-	suite.plugin.Execute(suite.mockContext,
-		contracts.Configuration{Properties: map[string]interface{}{"bindHost": "0.0.0.0", "portNumber": "22"}, SessionId: "sessionId"},
-		suite.mockCancelFlag,
-		suite.mockIohandler,
-		suite.mockDataChannel)
-
-	suite.mockCancelFlag.AssertExpectations(suite.T())
-	suite.mockIohandler.AssertExpectations(suite.T())
-}
-
 func (suite *PortTestSuite) TestExecuteWhenInitializeSessionReturnsError() {
 	suite.mockCancelFlag.On("Canceled").Return(false)
 	suite.mockCancelFlag.On("ShutDown").Return(false)
